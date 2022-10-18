@@ -75,7 +75,10 @@ type mvalue =
    * where strings are often used to represent entities (e.g., function
    * names).
    *)
-  | Text of string AST_generic.wrap
+  | Text of
+      string
+      * (* token without enclosing quotes *) AST_generic.tok
+      * (* original token *) AST_generic.tok
 [@@deriving show, eq, hash]
 
 (* we sometimes need to convert to an any to be able to use
@@ -97,7 +100,7 @@ let mvalue_to_any = function
   | Xmls x -> G.Xmls x
   | T x -> G.T x
   | P x -> G.P x
-  | Text (s, info) -> G.E (G.L (G.String (s, info)) |> G.e)
+  | Text (s, info, _) -> G.E (G.L (G.String (s, info)) |> G.e)
 
 (* This is used for metavariable-pattern: where we need to transform the content
  * of a metavariable into a program so we can use evaluate_formula on it *)
