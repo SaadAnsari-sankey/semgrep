@@ -71,6 +71,7 @@ jobs:
   # Run parsing stats and publish them to the semgrep dashboard.
   autofix-printing-stats:
     docker:
+      - image: returntocorp/ocaml:ubuntu
       - image: returntocorp/semgrep-dev:develop
     steps:
       - checkout
@@ -78,8 +79,7 @@ jobs:
           name: autofix printing stats
           no_output_timeout: 60m
           command: |
-            cd autofix-printing-stats
-            ./run --upload
+            opam exec -- ./autofix-printing-stats/run --upload
 
 ##########################################################################################
 # The workflows
@@ -156,3 +156,13 @@ workflows:
             branches:
               only:
                 - parsing-stats
+
+  # This is for testing or for forcing a stats job. Requires pushing
+  # to a branch named 'autofix-printing-stats'.
+  autofix-printing-stats-on-commit:
+    jobs:
+      - autofix-printing-stats:
+          filters:
+            branches:
+              only:
+                - autofix-printing-stats
