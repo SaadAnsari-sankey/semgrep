@@ -54,7 +54,7 @@ from semgrep.verbose_logging import getLogger
 logger = getLogger(__name__)
 
 AUTO_CONFIG_KEY = "auto"
-AUTO_CONFIG_LOCATION = "c/auto"
+AUTO_CONFIG_LOCATION = "all_rules.yaml"
 
 MISSING_RULE_ID = "no-rule-id"
 
@@ -118,7 +118,7 @@ class ConfigLoader:
             self._config_path = saved_snippet_to_url(config_str)
         elif config_str == AUTO_CONFIG_KEY:
             state.metrics.add_feature("config", "auto")
-            self._config_path = f"{state.env.semgrep_url}/{AUTO_CONFIG_LOCATION}"
+            self._config_path = f"http://127.0.0.1:5500/{AUTO_CONFIG_LOCATION}"
         else:
             state.metrics.add_feature("config", "local")
             self._origin = ConfigType.LOCAL
