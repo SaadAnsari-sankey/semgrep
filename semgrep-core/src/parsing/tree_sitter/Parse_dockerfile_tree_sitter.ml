@@ -154,7 +154,7 @@ let expansion (env : env) ((v1, v2) : CST.expansion) : string_fragment =
       | _ ->
           let loc = (dollar, wrap_tok name) in
           Expansion (loc, Expand_var name))
-  | `LCURL_imm_tok_pat_8713919_RCURL (v1, v2, v3) ->
+  | `Imm_tok_lcurl_imm_tok_pat_8713919_imm_tok_rcurl (v1, v2, v3) ->
       let _open = token env v1 (* "{" *) in
       let var_or_mv = str env v2 (* pattern [^\}]+ *) in
       let name, _tok = var_or_mv in
@@ -168,7 +168,7 @@ let expansion (env : env) ((v1, v2) : CST.expansion) : string_fragment =
       let loc = (dollar, close) in
       Expansion (loc, expansion)
 
-let param (env : env) ((v1, v2, v3, v4) : CST.param) =
+let param (env : env) ((v1, v2, v3, v4) : CST.param) : param =
   let dashdash = token env v1 (* "--" *) in
   let key = str env v2 (* pattern [a-z][-a-z]* *) in
   let equal = token env v3 (* "=" *) in
@@ -306,7 +306,7 @@ let unquoted_string (env : env) (xs : CST.unquoted_string) : str =
         match x with
         | `Imm_tok_pat_24a1611 tok ->
             String_content (str env tok (* pattern "[^\\s\\n\\\"\\\\\\$]+" *))
-        | `BSLASHSPACE tok -> String_content (str env tok (* "\\ " *))
+        | `Imm_tok_bsla tok -> String_content (str env tok (* "\\ " *))
         | `Imme_expa x -> expansion env x)
       xs
     |> simplify_fragments
@@ -390,8 +390,10 @@ let shell_fragment (env : env) (xs : CST.shell_fragment) : tok =
   Common.map
     (fun x ->
       match x with
-      | `Pat_4b81dfc tok -> (* pattern [^\\\[\n#\s][^\\\n]* *) token env tok
-      | `Pat_f05eb95 tok -> (* pattern \\[^\n] *) token env tok)
+      | `Pat_b1120d3 tok
+      | `Pat_dea634e tok
+      | `Pat_eda9032 tok ->
+          token env tok)
     xs
   |> unsafe_concat_tokens |> snd
 
@@ -480,7 +482,7 @@ let empty_token_after tok : tok =
 let env_pair (env : env) (x : CST.env_pair) : label_pair =
   match x with
   | `Semg_ellips tok -> Label_semgrep_ellipsis (token env tok (* "..." *))
-  | `Env_key_EQ_opt_choice_double_quoted_str (v1, v2, v3) ->
+  | `Env_key_imm_tok_eq_opt_choice_double_quoted_str (v1, v2, v3) ->
       let k =
         Var_ident (str env v1 (* pattern [a-zA-Z][a-zA-Z0-9_]*[a-zA-Z0-9] *))
       in
@@ -511,7 +513,7 @@ let spaced_env_pair (env : env) ((v1, v2, v3) : CST.spaced_env_pair) :
 let label_pair (env : env) (x : CST.label_pair) : label_pair =
   match x with
   | `Semg_ellips tok -> Label_semgrep_ellipsis (token env tok (* "..." *))
-  | `Choice_semg_meta_EQ_choice_double_quoted_str (v1, v2, v3) ->
+  | `Choice_semg_meta_imm_tok_eq_choice_double_quoted_str (v1, v2, v3) ->
       let key =
         match v1 with
         | `Semg_meta tok ->
@@ -641,12 +643,50 @@ let argv_or_shell (env : env) (x : CST.anon_choice_str_array_878ad0b) =
       Argv (loc, ar)
   | `Shell_cmd x -> shell_command env x
 
-let runlike_instruction (env : env) name cmd =
+let mount_param_param (env : env) ((v1, v2, v3) : CST.mount_param_param) =
+  let key = str env v1 in
+  let _eq = token env v2 in
+  let value = str env v3 in
+  let loc = (snd key, snd value) in
+  (loc, key, value)
+
+let rec unsafe_list_last = function
+  | [] -> assert false
+  | [ x ] -> x
+  | _ :: xs -> unsafe_list_last xs
+
+let mount_param (env : env) ((v1, v2, v3, v4, v5) : CST.mount_param) =
+  let start = (* "--" *) token env v1 in
+  let mount = str env v2 in
+  let _eq = token env v3 in
+  let param1 = mount_param_param env v4 in
+  let params =
+    Common.map
+      (fun (v1, v2) ->
+        let _comma = token env v1 in
+        let kv = mount_param_param env v2 in
+        kv)
+      v5
+  in
+  let params = param1 :: params in
+  let (_, end_), _k, _v = unsafe_list_last params in
+  let loc = (start, end_) in
+  Mount_param (loc, mount, params)
+
+let runlike_instruction (env : env) name params cmd =
   let name = str env name (* RUN, CMD, ... *) in
+  let params =
+    Common.map
+      (fun x ->
+        match x with
+        | `Param x -> Param (param env x)
+        | `Mount_param x -> mount_param env x)
+      params
+  in
   let cmd = argv_or_shell env cmd in
   let _, end_ = argv_or_shell_loc cmd in
   let loc = (wrap_tok name, end_) in
-  (loc, name, cmd)
+  (loc, name, params, cmd)
 
 let rec instruction (env : env) (x : CST.instruction) : env * instruction =
   match x with
@@ -680,12 +720,16 @@ let rec instruction (env : env) (x : CST.instruction) : env * instruction =
             | None -> (None, loc)
           in
           (env, From (loc, name, param, image_spec, alias))
-      | `Run_inst (v1, v2) ->
-          let loc, name, cmd = runlike_instruction (env : env) v1 v2 in
-          (env, Run (loc, name, cmd))
+      | `Run_inst (v1, v2, v3) ->
+          let loc, name, params, cmd =
+            runlike_instruction (env : env) v1 v2 v3
+          in
+          (env, Run (loc, name, params, cmd))
       | `Cmd_inst (v1, v2) ->
-          let loc, name, cmd = runlike_instruction (env : env) v1 v2 in
-          (env, Cmd (loc, name, cmd))
+          let loc, name, params, cmd =
+            runlike_instruction (env : env) v1 [] v2
+          in
+          (env, Cmd (loc, name, params, cmd))
       | `Label_inst (v1, v2) ->
           let name = str env v1 (* pattern [lL][aA][bB][eE][lL] *) in
           let label_pairs = Common.map (label_pair env) v2 in
@@ -753,7 +797,9 @@ let rec instruction (env : env) (x : CST.instruction) : env * instruction =
           let loc = (wrap_tok name, str_loc dst |> snd) in
           (env, Copy (loc, name, param, src, dst))
       | `Entr_inst (v1, v2) ->
-          let loc, name, cmd = runlike_instruction (env : env) v1 v2 in
+          let loc, name, _params, cmd =
+            runlike_instruction (env : env) v1 [] v2
+          in
           (env, Entrypoint (loc, name, cmd))
       | `Volume_inst (v1, v2) ->
           let name = str env v1 (* pattern [vV][oO][lL][uU][mM][eE] *) in
@@ -844,9 +890,11 @@ let rec instruction (env : env) (x : CST.instruction) : env * instruction =
             | `Rep_param_cmd_inst (v1, (name (* CMD *), args)) ->
                 let params = Common.map (param env) v1 in
                 let params_loc = Loc.of_list param_loc params in
-                let cmd_loc, name, args = runlike_instruction env name args in
+                let cmd_loc, name, run_params, args =
+                  runlike_instruction env name [] args
+                in
                 let loc = Loc.range params_loc cmd_loc in
-                Healthcheck_cmd (loc, params, (cmd_loc, name, args))
+                Healthcheck_cmd (loc, params, (cmd_loc, name, run_params, args))
           in
           let loc = Loc.extend (healthcheck_loc arg) (wrap_tok name) in
           (env, Healthcheck (loc, name, arg))

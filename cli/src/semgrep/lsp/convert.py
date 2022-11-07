@@ -10,7 +10,7 @@ from semgrep.lsp.types import DiagnosticSeverity
 from semgrep.rule import Rule
 from semgrep.rule_match import RuleMatch
 from semgrep.rule_match import RuleMatchMap
-from semgrep.semgrep_interfaces.semgrep_output_v0 import MetavarValue
+from semgrep.semgrep_interfaces.semgrep_output_v1 import MetavarValue
 from semgrep.target_manager import TargetManager
 from semgrep.types import JsonObject
 from semgrep.util import flatten
@@ -119,7 +119,9 @@ def rule_match_to_diagnostic(rule_match: RuleMatch) -> Diagnostic:
         "code": rule_match.rule_id,
         "codeDescription": {"href": rule_url},
         "data": {
-            "matchSource": rule_match.syntactic_context,
+            # Use match_formula_string here since it'll always be more accurate
+            # for fix_regex
+            "matchSource": rule_match.match_formula_string,
             "uri": f"file://{rule_match.path}",
         },
         "relatedInformation": rule_match_get_related(rule_match),
@@ -132,7 +134,7 @@ def rule_match_to_diagnostic(rule_match: RuleMatch) -> Diagnostic:
         diagnostic["data"]["fix"] = rule_match.fix
         fix_message = rule_match.fix
     if rule_match.fix_regex:
-        diagnostic["data"]["fix_regex"] = rule_match.fix_regex
+        diagnostic["data"]["fix_regex"] = rule_match.fix_regex.to_json()
         fix_message = rule_match.fix
 
     if fix_message is not None:

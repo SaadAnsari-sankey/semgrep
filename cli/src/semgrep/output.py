@@ -20,7 +20,7 @@ from typing import Type
 import requests
 from boltons.iterutils import partition
 
-import semgrep.semgrep_interfaces.semgrep_output_v0 as out
+import semgrep.semgrep_interfaces.semgrep_output_v1 as out
 from semgrep.constants import Colors
 from semgrep.constants import OutputFormat
 from semgrep.constants import RuleSeverity
@@ -455,6 +455,8 @@ class OutputHandler:
             extra[
                 "per_line_max_chars_limit"
             ] = self.settings.output_per_line_max_chars_limit
+            extra["dataflow_traces"] = self.settings.dataflow_traces
+        if self.settings.output_format == OutputFormat.SARIF:
             extra["dataflow_traces"] = self.settings.dataflow_traces
 
         # the rules are used only by the SARIF formatter

@@ -196,7 +196,7 @@ let dump_pattern (file : Common.filename) =
   let file = Run_semgrep.replace_named_pipe_by_regular_file file in
   let s = Common.read_file file in
   (* mostly copy-paste of parse_pattern in runner, but with better error report *)
-  let lang = Xlang.lang_of_opt_xlang !lang in
+  let lang = Xlang.lang_of_opt_xlang_exn !lang in
   E.try_with_print_exn_and_reraise file (fun () ->
       let any = Parse_pattern.parse_pattern lang ~print_errors:true s in
       let v = Meta_AST.vof_any any in
@@ -258,7 +258,7 @@ let dump_il file =
   in
   Visit_function_defs.visit report_func_def_with_name ast
 
-let dump_v0_json file =
+let dump_v1_json file =
   let file = Run_semgrep.replace_named_pipe_by_regular_file file in
   match Lang.langs_of_filename file with
   | lang :: _ ->
@@ -266,8 +266,8 @@ let dump_v0_json file =
           let { Parse_target.ast; skipped_tokens; _ } =
             Parse_target.parse_and_resolve_name lang file
           in
-          let v1 = AST_generic_to_v0.program ast in
-          let s = Ast_generic_v0_j.string_of_program v1 in
+          let v1 = AST_generic_to_v1.program ast in
+          let s = Ast_generic_v1_j.string_of_program v1 in
           pr s;
           if skipped_tokens <> [] then
             pr2 (spf "WARNING: fail to fully parse %s" file))
@@ -277,8 +277,8 @@ let generate_ast_json file =
   match Lang.langs_of_filename file with
   | lang :: _ ->
       let ast = Parse_target.parse_and_resolve_name_warn_if_partial lang file in
-      let v1 = AST_generic_to_v0.program ast in
-      let s = Ast_generic_v0_j.string_of_program v1 in
+      let v1 = AST_generic_to_v1.program ast in
+      let s = Ast_generic_v1_j.string_of_program v1 in
       let file = file ^ ".ast.json" in
       Common.write_file ~file s;
       pr2 (spf "saved JSON output in %s" file)
@@ -384,14 +384,14 @@ let all_actions () =
     (* possibly useful to the user *)
     ( "-show_ast_json",
       " <file> dump on stdout the generic AST of file in JSON",
-      Common.mk_action_1_arg dump_v0_json );
+      Common.mk_action_1_arg dump_v1_json );
     ( "-generate_ast_json",
       " <file> save in file.ast.json the generic AST of file in JSON",
       Common.mk_action_1_arg generate_ast_json );
     ( "-generate_ast_binary",
       " <file> save in file.ast.binary the marshalled generic AST of file",
       Common.mk_action_1_arg (fun file ->
-          generate_ast_binary (Xlang.lang_of_opt_xlang !lang) file) );
+          generate_ast_binary (Xlang.lang_of_opt_xlang_exn !lang) file) );
     ( "-prefilter_of_rules",
       " <file> dump the prefilter regexps of rules in JSON ",
       Common.mk_action_1_arg prefilter_of_rules );
@@ -399,7 +399,7 @@ let all_actions () =
       " <files or dirs> generate parsing statistics (use -json for JSON output)",
       Common.mk_action_n_arg (fun xs ->
           Test_parsing.parsing_stats
-            (Xlang.lang_of_opt_xlang !lang)
+            (Xlang.lang_of_opt_xlang_exn !lang)
             ~json:(!output_format <> Text) ~verbose:true xs) );
     (* the dumpers *)
     ( "-dump_extensions",
@@ -410,13 +410,13 @@ let all_actions () =
       " <file>",
       fun file ->
         Common.mk_action_1_arg
-          (dump_ast ~naming:false (Xlang.lang_of_opt_xlang !lang))
+          (dump_ast ~naming:false (Xlang.lang_of_opt_xlang_exn !lang))
           file );
     ( "-dump_named_ast",
       " <file>",
       fun file ->
         Common.mk_action_1_arg
-          (dump_ast ~naming:true (Xlang.lang_of_opt_xlang !lang))
+          (dump_ast ~naming:true (Xlang.lang_of_opt_xlang_exn !lang))
           file );
     ("-dump_il_all", " <file>", Common.mk_action_1_arg dump_il_all);
     ("-dump_il", " <file>", Common.mk_action_1_arg dump_il);
@@ -424,24 +424,29 @@ let all_actions () =
     ( "-dump_equivalences",
       " <file> (deprecated)",
       Common.mk_action_1_arg dump_equivalences );
+    ( "-dump_jsonnet_ast",
+      " <file>",
+      Common.mk_action_1_arg Test_ojsonnet.dump_jsonnet_ast );
     ( "-dump_tree_sitter_cst",
       " <file> dump the CST obtained from a tree-sitter parser",
       Common.mk_action_1_arg (fun file ->
           let file = Run_semgrep.replace_named_pipe_by_regular_file file in
-          Test_parsing.dump_tree_sitter_cst (Xlang.lang_of_opt_xlang !lang) file)
-    );
+          Test_parsing.dump_tree_sitter_cst
+            (Xlang.lang_of_opt_xlang_exn !lang)
+            file) );
     ( "-dump_tree_sitter_pattern_cst",
       " <file>",
       Common.mk_action_1_arg (fun file ->
           let file = Run_semgrep.replace_named_pipe_by_regular_file file in
           Parse_pattern.dump_tree_sitter_pattern_cst
-            (Xlang.lang_of_opt_xlang !lang)
+            (Xlang.lang_of_opt_xlang_exn !lang)
             file) );
     ( "-dump_pfff_ast",
       " <file> dump the generic AST obtained from a pfff parser",
       Common.mk_action_1_arg (fun file ->
           let file = Run_semgrep.replace_named_pipe_by_regular_file file in
-          Test_parsing.dump_pfff_ast (Xlang.lang_of_opt_xlang !lang) file) );
+          Test_parsing.dump_pfff_ast (Xlang.lang_of_opt_xlang_exn !lang) file)
+    );
     ( "-diff_pfff_tree_sitter",
       " <file>",
       Common.mk_action_n_arg Test_parsing.diff_pfff_tree_sitter );
@@ -467,13 +472,15 @@ let all_actions () =
     ( "-parsing_regressions",
       " <files or dirs> look for parsing regressions",
       Common.mk_action_n_arg (fun xs ->
-          Test_parsing.parsing_regressions (Xlang.lang_of_opt_xlang !lang) xs)
-    );
+          Test_parsing.parsing_regressions
+            (Xlang.lang_of_opt_xlang_exn !lang)
+            xs) );
     ( "-test_parse_tree_sitter",
       " <files or dirs> test tree-sitter parser on target files",
       Common.mk_action_n_arg (fun xs ->
-          Test_parsing.test_parse_tree_sitter (Xlang.lang_of_opt_xlang !lang) xs)
-    );
+          Test_parsing.test_parse_tree_sitter
+            (Xlang.lang_of_opt_xlang_exn !lang)
+            xs) );
     ( "-check_rules",
       " <metachecks file> <files or dirs>",
       Common.mk_action_n_arg (Check_rule.check_files mk_config Parse_rule.parse)
@@ -502,6 +509,7 @@ let all_actions () =
   ]
   @ Test_analyze_generic.actions ~parse_program:Parse_target.parse_program
   @ Test_dataflow_tainting.actions ()
+  @ Test_otarzan.actions ()
   @ Test_naming_generic.actions ~parse_program:Parse_target.parse_program
 
 let options () =

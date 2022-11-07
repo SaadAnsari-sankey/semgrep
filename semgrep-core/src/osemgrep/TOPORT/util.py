@@ -156,15 +156,6 @@ def flatten(some_list: List[List[T]]) -> List[T]:
 PathFilterCallable = Callable[..., FrozenSet[Path]]
 
 
-def unit_str(count: int, unit: str, pad: bool = False) -> str:
-    if count != 1:
-        unit += "s"
-    elif pad:
-        unit += " "
-
-    return f"{count} {unit}"
-
-
 def git_check_output(command: Sequence[str], cwd: Optional[str] = None) -> str:
     """
     Helper function to run a GIT command that prints out helpful debugging information
@@ -206,20 +197,6 @@ def git_check_output(command: Sequence[str], cwd: Optional[str] = None) -> str:
                 """
             ).strip()
         )
-
-
-def read_range(fd: TextIOWrapper, start_offset: int, end_offset: int) -> str:
-    """
-    Takes a file descriptor and returns the text between the offsets. Start
-    inclusive, end exclusive.
-
-    It is recommended to open the fd with `open(path, errors="replace"). See
-    https://stackoverflow.com/a/56441652.
-    """
-    # Offsets are start inclusive and end exclusive
-    length = end_offset - start_offset
-    fd.seek(start_offset)
-    return fd.read(length)
 
 
 def get_lines(

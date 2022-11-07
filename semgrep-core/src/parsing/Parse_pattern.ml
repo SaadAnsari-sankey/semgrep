@@ -14,6 +14,8 @@
  *)
 open Common
 
+let logger = Logging.get_logger [ __MODULE__ ]
+
 (*****************************************************************************)
 (* Prelude *)
 (*****************************************************************************)
@@ -51,8 +53,11 @@ type 'ast parser =
 let run_parser ~print_errors p str =
   let parse () =
     match p with
-    | Pfff f -> f str
+    | Pfff f ->
+        logger#trace "trying to parse with Pfff parser the pattern";
+        f str
     | TreeSitter f ->
+        logger#trace "trying to parse with Tree-sitter parser the pattern";
         let res = f str in
         extract_pattern_from_tree_sitter_result res print_errors
   in
@@ -91,6 +96,9 @@ let parse_pattern lang ?(print_errors = false) str =
   let any =
     match lang with
     (* directly to generic AST any using tree-sitter only *)
+    | Lang.Apex ->
+        let res = Parsing_plugin.Apex.parse_pattern str in
+        extract_pattern_from_tree_sitter_result res print_errors
     | Lang.Csharp ->
         let res = Parse_csharp_tree_sitter.parse_pattern str in
         extract_pattern_from_tree_sitter_result res print_errors

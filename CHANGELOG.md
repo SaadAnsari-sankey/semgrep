@@ -8,6 +8,86 @@ This project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html
 
 <!-- insertion point -->
 
+## [0.120.0](https://github.com/returntocorp/semgrep/releases/tag/v0.120.0) - 2022-11-02
+
+### Added
+
+- Fail gracefully and print error message when running in unsupported Linux aarch64/arm64 environment (arm-fail)
+- Added 'fingerprints' field to results in sarif output (gh-5729)
+- Add dataflow traces as 'codeFlows' object in SARIF output (gh-6367)
+- Fail immediately if semgrep tries to run a supply chain rule with an invalid version range specifier (ssc-fail-early)
+- Added Supply Chain support for requirements.txt lockfiles (with requirement.in manifest files) and Yarn 2/3 lockfiles (ssc-yarn-req)
+
+### Changed
+
+- Change default behavior of CircleCI configurations. If a user manually sets their environment variables (i.e. SEMGREP_REPO_NAME, SEMGREP_REPO_URL, SEMGREP_BRANCH, SEMGREP_JOB_URL, SEMGREP_COMMIT), use it before falling back on autodetection. (app-2434)
+- Change default behavior of Buildkite CI configurations. If a user manually sets their environment variables (i.e. SEMGREP_REPO_NAME, SEMGREP_REPO_URL, SEMGREP_BRANCH, SEMGREP_JOB_URL, SEMGREP_COMMIT), use it before falling back on autodetection. (app-2435)
+- Change default behavior of bitbucket CI configurations. If a user manually sets their environment variables (i.e. SEMGREP_REPO_NAME, SEMGREP_REPO_URL, SEMGREP_BRANCH, SEMGREP_JOB_URL, SEMGREP_COMMIT), use it before falling back on autodetection. (app-2436)
+
+### Fixed
+
+- Handle unexpected exceptions when performing AST-based autofix. (autofix-exception)
+- Fix an issue that could cause AST-based autofix to fail on autofixes containing statements. (autofix-statement-exception)
+- Fix an issue preventing AST-based autofix from running in the presence of `focus-metavariable`. (focus-metavariable-autofix)
+- Implement string literal metavariables in Python AST-based autofix (gh-3648)
+- Go: parse correctly generic types from other packages (gh-5799)
+- Fix parsing of dot access ellipsis in PHP patterns (e.g. `$x-> ... ->bar()`). (gh-6183)
+- JS/TS: Allowed parsing of patterns using the optional chaining "?." syntax. (gh-6201)
+- Dockerfile language: Add support for RUN options such as
+  `RUN --mount=type=$TYPE,target=$TARGET ...`. (gh-6353)
+- taint-mode: Fixed a bug in the experimental taint-labels feature that caused labels to be incorrectly applied to dot accesses. For instance, if a pattern-source that requires label A and adds label B matches a dot-access expression like x.a, the field a will get the label B even if it does not carry label A as required. (gh-6355)
+- Use AST-based autofix when possible for JS autofixes. This is more likely to lead to correct output, especially for complicated fixes. (js-autofix)
+- taint-mode: Fixed regression in 0.113.0, after field sensitivity support was added,
+  that broke existing behavior when a prefix in a chain of dot-accesses such as
+  `x.a.b` was specified as a source/sanitizer/sink. For example, if `x` had been
+  previously tainted, then we encountered `sink(x.a.b)` where `x.a` matched a
+  sanitizer, there was a finding reported because `x.a.b` was incorrectly considered
+  tainted. (pa-1928)
+- JS/TS: Fixed a parsing bug where special identifiers were parsed differently in patterns (pa-2030)
+- Language server now appropriately applies regex fixes (vscode-regex)
+
+## 0.119.0 - Skipped
+
+Version 0.119.0 of Semgrep was intentionally skipped. Version 0.120.0 immediately follows version 0.118.0.
+
+## [0.118.0](https://github.com/returntocorp/semgrep/releases/tag/v0.118.0) - 2022-10-19
+
+### Added
+
+- Taint mode will now track taint coming from the default values of function
+  parameters. For example, given `def test(url = "http://example.com"):`,
+  if `"http://example.com"` is a taint source (due to not using TLS), then
+  `url` will be marked as tainted during the analysis of `test`. (gh-6298)
+- taint-mode: Added two new rule `options` that help minimizing false positives.
+
+  First one is `taint_assume_safe_indexes`, which makes Semgrep assume that an
+  array-access expression is safe even if the index expression is tainted. Otherwise
+  Semgrep assumes that e.g. `a[i]` is tainted if `i` is tainted, even if `a` is not.
+  Enabling this option is recommended for high-signal rules, whereas disabling it
+  may be preferred for audit rules. Currently, it is disabled by default for pure
+  backwards compatibility reasons, but this may change in the near future after some
+  evaluation.
+
+  The other one is `taint_assume_safe_functions`, which makes Semgrep assume that
+  function calls do _NOT_ propagate taint from their arguments to their output.
+  Otherwise, Semgrep always assumes that functions may propagate taint. This is
+  intended to replace _not conflicting_ sanitizers (added in v0.69.0) in the future.
+  This option is still experimental and needs to be complemented by other changes
+  to be made in future releases. (pa-1541)
+
+### Changed
+
+- Ignore the .npm/ directory by default in Semgrep scans (gh-6315)
+- The `--scan-unknown-extensions` option is now set to false by default.
+  This means that from now on `--skip-unknown-extensions` is the default.
+  This is an important change that prevents many errors when using
+  Semgrep in a pre-commit context or in CI. (pa-1932)
+
+### Fixed
+
+- Add autodetection for pull request numbers for Azure Pipelines. If SEMGREP_PR_ID is set, override the autodetection. (app-2083)
+- Fixed an autofix regression that caused Semgrep to fail to replace metavariables in string literals, e.g. `foo("xyz $X")`. (autofix-string-metavar)
+
 ## [0.117.0](https://github.com/returntocorp/semgrep/releases/tag/v0.117.0) - 2022-10-12
 
 ### Added
@@ -69,6 +149,8 @@ This project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html
 - taint-mode: It is now possible for `this` or `this.x` to be a source of taint. (pa-1929)
 - taint-mode: Fixed a bug that made Semgrep miss taint findings when the sink was
   located inside an `if` condition or a `throw` (aka `raise`) expression/statement. (pa-1933)
+- Start to use the AST to render autofixes in some specific cases. As this is extended, autofix will become more correct and more powerful. (ast-autofix)
+- Fixed a parser error in some package-lock.json files (sca-parse-error)
 
 ## [0.115.0](https://github.com/returntocorp/semgrep/releases/tag/v0.115.0) - 2022-09-27
 
